@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BUZZED × MOFFS | Check-in</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px 16px; background: #101010;
+      color: white; font-family: Arial, sans-serif;
+    }
+    main { max-width: 460px; margin: auto; }
+    .brand {
+      text-align: center; color: #bbb; letter-spacing: 4px;
+      font-size: 13px;
+    }
+    h1 { text-align: center; font-size: 28px; }
+    .sub { text-align: center; color: #aaa; font-size: 14px; }
+    .panel {
+      margin-top: 24px; padding: 16px; border-radius: 16px;
+      border: 1px solid #333; background: #1c1c1c;
+    }
+    #reader { width: 100%; overflow: hidden; }
+    #status {
+      margin-top: 16px; padding: 16px; border-radius: 10px;
+      background: #292929; line-height: 1.6;
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    button {
+      width: 100%; padding: 14px; margin-top: 12px;
+      border: 0; border-radius: 9px; font-weight: bold;
+      font-size: 15px; cursor: pointer;
+    }
+    #start { background: white; color: #111; }
+    #next { background: #444; color: white; }
+    button:disabled { opacity: .5; }
+    footer {
+      margin-top: 20px; text-align: center; color: #999;
+      font-size: 12px; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand">BUZZED × MOFFS</div>
+  <h1>QR CHECK-IN</h1>
+  <div class="sub">Official attendee scanner</div>
+
+  <section class="panel">
+    <div id="reader"></div>
+    <div id="status">Ready to begin. Tap Start Scanner.</div>
+    <button id="start">Start Scanner</button>
+    <button id="next" disabled>Scan Next Attendee</button>
+  </section>
+
+  <footer>
+    Scan official registration QR codes only.
+    Verify the result before admitting an attendee.
+  </footer>
+</main>
+
+<script>
+  const statusBox = document.getElementById("status");
+  const startBtn = document.getElementById("start");
+  const nextBtn = document.getElementById("next");
+  let scanner;
+  let busy = false;
+  let locked = false;
+  let running = false;
+
+  function show(message) {
+    statusBox.textContent = message;
+  }
+
+  function readQR(text) {
+    let url = new URL(text);
+
+    if (url.hostname === "quickchart.io" && url.pathname === "/qr") {
+      const embedded = url.searchParams.get("text");
+      if (!embedded) throw new Error("QR link is missing.");
+      url = new URL(embedded);
+    }
+
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "script.google.com" ||
+      !url.pathname.endsWith("/exec") ||
+      !url.searchParams.get("id")
+    ) {
+      throw new Error("This QR code is not a valid registration QR.");
+    }
+
+    return url.href;
+  }
+
+  async function onScan(text) {
+    if (busy || locked) return;
+
+    busy = true;
+    locked = true;
+    startBtn.disabled = true;
+    nextBtn.disabled = true;
+
+    try {
+      const link = readQR(text);
+
+      if (running) {
+        await scanner.stop();
+        running = false;
+      }
+
+      show(
+        "QR RECOGNIZED\n\n" +
+        "Opening the official check-in endpoint..."
+      );
+
+      // Temporary diagnostic step: tests the existing endpoint.
+      // It does not claim success unless the endpoint returns a valid result.
+      window.location.assign(link);
+    } catch (err) {
+      show("SCAN ERROR\n\n" + err.message);
+      busy = false;
+      locked = false;
+      nextBtn.disabled = false;
+    }
+  }
+
+  async function startScanner() {
+    startBtn.disabled = true;
+    try {
+      if (!scanner) scanner = new Html5Qrcode("reader");
+
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        onScan,
+        () => {}
+      );
+
+      running = true;
+      locked = false;
+      show("SCANNER ACTIVE\n\nPoint the camera at an attendee's QR code.");
+    } catch (err) {
+      show("CAMERA ERROR\n\nAllow camera access and use the HTTPS website.");
+      startBtn.disabled = false;
+    }
+  }
+
+  startBtn.addEventListener("click", startScanner);
+
+  nextBtn.addEventListener("click", () => {
+    busy = false;
+    locked = false;
+    nextBtn.disabled = true;
+    startBtn.disabled = false;
+    show("Tap Start Scanner to scan the next attendee.");
+  });
+</script>
+</body>
+</html>
