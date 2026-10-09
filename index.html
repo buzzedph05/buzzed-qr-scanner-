@@ -119,7 +119,36 @@
 
       // Temporary diagnostic step: tests the existing endpoint.
       // It does not claim success unless the endpoint returns a valid result.
-      window.location.assign(link);
+      const id = new URL(link).searchParams.get("id");
+
+if (!id) {
+  alert("Invalid QR code.");
+  return;
+}
+
+const callbackName = "buzzedCallback";
+
+window[callbackName] = function (result) {
+  if (result.ok) {
+    alert("CHECK-IN SUCCESSFUL!\n" + result.name);
+  } else {
+    alert(result.message || "Check-in failed.");
+  }
+  delete window[callbackName];
+};
+
+const script = document.createElement("script");
+script.src =
+  "https://script.google.com/macros/s/AKfycbzXPrP19y9mVYUWhTx2k-8elFlN3Jt4wqnIp2uGyn7PclL6C7D90iIX6mtmgLhgyPEV/exec?id=" +
+  encodeURIComponent(id) +
+  "&callback=" + callbackName;
+
+script.onerror = function () {
+  alert("Could not connect to the check-in system. Please try again.");
+  delete window[callbackName];
+};
+
+document.body.appendChild(script);
     } catch (err) {
       show("SCAN ERROR\n\n" + err.message);
       busy = false;
